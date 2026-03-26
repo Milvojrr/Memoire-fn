@@ -72,7 +72,7 @@ export default function Home() {
       
       <footer className="bg-dark text-white-50 py-4 text-center mt-auto">
         <Container>
-          <small>&copy; {new Date().getFullYear()} Graduation Project - Queue Management System</small>
+          <small>&copy; {new Date().getFullYear()} Queue Management System</small>
         </Container>
       </footer>
     </div>
