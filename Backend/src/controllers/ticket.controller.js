@@ -155,13 +155,26 @@ exports.getMyTickets = async (req, res) => {
   res.json(tickets);
 };
 
-// Detailed statistics for the stats page
+// Detailed statistics with optional date filtering
 exports.getDetailedStats = async (req, res) => {
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const { startDate, endDate } = req.query;
+  
+  let dateFilter = {};
+  if (startDate || endDate) {
+    if (startDate) dateFilter.gte = new Date(startDate);
+    if (endDate) {
+      const eod = new Date(endDate);
+      eod.setHours(23, 59, 59, 999);
+      dateFilter.lte = eod;
+    }
+  } else {
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    dateFilter.gte = todayStart;
+  }
 
   const [allTickets, services] = await Promise.all([
     prisma.ticket.findMany({
-      where: { heureCreation: { gte: todayStart } },
+      where: { heureCreation: dateFilter },
       include: { service: true }
     }),
     prisma.service.findMany()

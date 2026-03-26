@@ -44,9 +44,13 @@ export default function AppNavbar() {
             <Nav.Link as={Link} to="/display">Display Board</Nav.Link>
             {isAuthenticated ? (
               <>
-                {/* All authenticated users can see Client */}
-                <Nav.Link as={Link} to="/client">Client</Nav.Link>
-                <Nav.Link as={Link} to="/my-tickets">My Tickets</Nav.Link>
+                {/* Only clients see these */}
+                {userRole === "client" && (
+                  <>
+                    <Nav.Link as={Link} to="/client">Client</Nav.Link>
+                    <Nav.Link as={Link} to="/my-tickets">My Tickets</Nav.Link>
+                  </>
+                )}
 
                 {/* Agent and Admin only */}
                 {(userRole === "agent" || userRole === "admin") && (
