@@ -6,6 +6,8 @@ import Register from "./pages/Register";
 import ClientDashboard from "./pages/ClientDashboard";
 import AgentDashboard from "./pages/AgentDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminClients from "./pages/AdminClients";
+import AdminAgents from "./pages/AdminAgents";
 import DisplayBoard from "./pages/DisplayBoard";
 import MyTickets from "./pages/MyTickets";
 import NotFound from "./pages/NotFound";
@@ -25,6 +27,8 @@ function App() {
             <Route path="/my-tickets" element={<MyTickets />} />
             <Route path="/agent" element={<AgentDashboard />} />
             <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/clients" element={<AdminClients />} />
+            <Route path="/admin/agents" element={<AdminAgents />} />
             <Route path="/stats" element={<Statistics />} />
             <Route path="/display" element={<DisplayBoard />} />
             <Route path="*" element={<NotFound />} />

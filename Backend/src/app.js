@@ -9,6 +9,7 @@ const rateLimit = require("express-rate-limit");
 const authRoutes = require("./routes/auth.route");
 const ticketRoutes = require("./routes/ticket.route");
 const serviceRoutes = require("./routes/service.route");
+const userRoutes = require("./routes/user.route");
 
 const app = express();
 const server = http.createServer(app);
@@ -34,6 +35,7 @@ app.use((req, res, next) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/tickets", ticketRoutes);
 app.use("/api/services", serviceRoutes);
+app.use("/api/users", userRoutes);
 
 // Apply rate limit only to ticket creation
 app.use("/api/tickets/create", ticketLimiter);
