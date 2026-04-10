@@ -41,6 +41,14 @@ export default function AdminDashboard() {
     } catch(e) { console.error("Error creating service"); }
   };
 
+  const handleDeleteService = async (id, nom) => {
+    if (!window.confirm(`Are you sure you want to delete the service "${nom}"? All associated tickets will also be deleted.`)) return;
+    try {
+      await API.delete(`/services/${id}`);
+      fetchData();
+    } catch (e) { console.error("Error deleting service"); }
+  };
+
   const handleBroadcast = async (e) => {
     e.preventDefault();
     if (!broadcastMsg) return;
@@ -118,11 +126,20 @@ export default function AdminDashboard() {
                  <hr/>
                  <h6 className="fw-bold text-muted mb-3">Existing Services ({services.length})</h6>
                  {services.map(s => (
-                   <div key={s.id} className="d-flex justify-content-between align-items-center p-2 border-bottom">
-                     <span className="fw-bold">{s.nom}</span>
-                     <span className="badge bg-secondary">ID: {s.id}</span>
-                   </div>
-                 ))}
+                    <div key={s.id} className="d-flex justify-content-between align-items-center p-2 border-bottom">
+                      <span className="fw-bold">{s.nom}</span>
+                      <div className="d-flex align-items-center gap-2">
+                        <span className="badge bg-secondary">ID: {s.id}</span>
+                        <button
+                          className="btn btn-outline-danger btn-sm"
+                          onClick={() => handleDeleteService(s.id, s.nom)}
+                          title="Delete service"
+                        >
+                          <i className="bi bi-trash"></i>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
               </Card.Body>
             </Card>
 
