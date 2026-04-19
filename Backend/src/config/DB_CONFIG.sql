@@ -1,12 +1,11 @@
 -- =========================
--- TABLE UTILISATEUR
+-- TABLE ADMIN
 -- =========================
-CREATE TABLE utilisateur (
+CREATE TABLE admin (
     id SERIAL PRIMARY KEY,
     nom VARCHAR(100),
     email VARCHAR(100) UNIQUE,
-    mot_de_passe TEXT,
-    role VARCHAR(20) CHECK (role IN ('client', 'agent', 'admin'))
+    mot_de_passe TEXT
 );
 
 -- =========================
@@ -33,7 +32,7 @@ CREATE TABLE file_attente (
 -- =========================
 CREATE TABLE agent (
     id SERIAL PRIMARY KEY,
-    utilisateur_id INT REFERENCES utilisateur(id),
+    admin_id INT REFERENCES admin(id),
     service_id INT REFERENCES service(id)
 );
 
@@ -43,7 +42,7 @@ CREATE TABLE agent (
 CREATE TABLE ticket (
     id SERIAL PRIMARY KEY,
     numero INT,
-    client_id INT REFERENCES utilisateur(id),
+    client_id INT REFERENCES admin(id),
     service_id INT REFERENCES service(id),
     statut VARCHAR(20) CHECK (statut IN ('EN_ATTENTE', 'EN_COURS', 'TERMINE', 'ANNULE')),
     heure_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

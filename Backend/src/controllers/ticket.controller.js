@@ -1,33 +1,37 @@
 const prisma = require("../config/prisma");
 
+const ALGIERS_OFFSET_MS = 60 * 60 * 1000; // UTC+1
+
+const getAlgiersDayBoundsUtc = (date = new Date()) => {
+  const shifted = new Date(date.getTime() + ALGIERS_OFFSET_MS);
+  shifted.setUTCHours(0, 0, 0, 0);
+  const start = new Date(shifted.getTime() - ALGIERS_OFFSET_MS);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { start, end };
+};
+
+const getAlgiersHour = (date) => {
+  const shifted = new Date(new Date(date).getTime() + ALGIERS_OFFSET_MS);
+  return shifted.getUTCHours();
+};
+
 exports.createTicket = async (req, res) => {
   try {
-    const { serviceId } = req.body;
+    const { start, end } = getAlgiersDayBoundsUtc();
 
-    // Count only today's tickets so number resets at midnight
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const count = await prisma.ticket.count({
-      where: { serviceId, heureCreation: { gte: todayStart } }
+    const lastTicketToday = await prisma.ticket.findFirst({
+      where: { heureCreation: { gte: start, lt: end } },
+      orderBy: { numero: "desc" }
     });
-
-    let clientId = req.user ? req.user.id : null;
-    if (!clientId) {
-      const guest = await prisma.utilisateur.findFirst({ where: { role: 'client' } });
-      if (guest) clientId = guest.id;
-      else return res.status(500).json({ error: "No guest client available to attach ticket to." });
-    }
 
     const ticket = await prisma.ticket.create({
       data: {
-        numero: count + 1,
-        statut: "EN_ATTENTE",
-        clientId,
-        serviceId
+        numero: (lastTicketToday?.numero || 0) + 1,
+        statut: "EN_ATTENTE"
       }
     });
 
-    req.io.emit("newTicket", ticket); // 🔥 temps réel
+    req.io.emit("newTicket", ticket);
     res.json(ticket);
   } catch (error) {
     console.error(error);
@@ -35,102 +39,102 @@ exports.createTicket = async (req, res) => {
   }
 };
 
-exports.callNext = async (req, res) => {
-  const { serviceId } = req.body;
-
-  const ticket = await prisma.ticket.findFirst({
-    where: { serviceId, statut: "EN_ATTENTE" },
-    orderBy: [{ priorite: "desc" }, { heureCreation: "asc" }]
-  });
-
-  if (!ticket) return res.json({ message: "Aucun client" });
-
-  const updated = await prisma.ticket.update({
-    where: { id: ticket.id },
-    data: { statut: "EN_COURS", heureAppel: new Date() },
-    include: { service: true }
-  });
-
-  req.io.emit("callTicket", updated);
-
-  res.json(updated);
-};
-
-exports.getStats = async (req, res) => {
-  const total = await prisma.ticket.count();
-  const waiting = await prisma.ticket.count({ where: { statut: "EN_ATTENTE" } });
-  const served = await prisma.ticket.count({ where: { statut: { in: ["EN_COURS", "TERMINE"] } } });
-
-  // Compute average handling time (minutes) from completed tickets today
-  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-  const done = await prisma.ticket.findMany({
-    where: { statut: "TERMINE", heureFin: { not: null }, heureAppel: { not: null }, heureCreation: { gte: todayStart } },
-    select: { heureAppel: true, heureFin: true }
-  });
-  let avgHandling = 3; // default 3 min fallback
-  if (done.length > 0) {
-    const totalMs = done.reduce((acc, t) => acc + (new Date(t.heureFin) - new Date(t.heureAppel)), 0);
-    avgHandling = Math.ceil(totalMs / done.length / 60000);
-  }
-  const estimatedWaitMinutes = waiting * avgHandling;
-
-  res.json({ total, waiting, served, avgHandling, estimatedWaitMinutes });
-};
-
-exports.markServed = async (req, res) => {
+exports.cancelTicket = async (req, res) => {
   try {
-    const { ticketId } = req.body;
-    const updated = await prisma.ticket.update({
-      where: { id: ticketId },
-      data: { statut: "TERMINE", heureFin: new Date() }
+    const ticketId = Number(req.params.id);
+
+    if (!Number.isInteger(ticketId) || ticketId <= 0) {
+      return res.status(400).json({ error: "Invalid ticket id" });
+    }
+
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: ticketId }
     });
-    // Let the network know the ticket is finished
-    req.io.emit("ticketServed", updated);
-    res.json(updated);
-  } catch (e) {
-    res.status(500).json({ error: "Failed to mark as served" });
+
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+
+    if (ticket.statut !== "EN_ATTENTE") {
+      return res.status(409).json({ error: "Ticket can no longer be cancelled" });
+    }
+
+    await prisma.ticket.delete({
+      where: { id: ticketId }
+    });
+
+    req.io.emit("queueUpdated");
+    req.io.emit("ticketCancelled", { id: ticket.id, numero: ticket.numero });
+
+    res.json({ message: "Ticket cancelled successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
-exports.getAllTickets = async (req, res) => {
-  const tickets = await prisma.ticket.findMany({
-    orderBy: { heureCreation: "desc" },
-    include: { service: true, client: true }
-  });
-  
-  // Clean up client password
-  const safeTickets = tickets.map(t => {
-    if (t.client) delete t.client.password;
-    return t;
-  });
+exports.callNext = async (req, res) => {
+  try {
+    // 1. If there's currently an active ticket, mark it as TERMINE
+    const activeTicket = await prisma.ticket.findFirst({
+      where: { statut: "EN_COURS" }
+    });
 
-  res.json(safeTickets);
+    if (activeTicket) {
+      await prisma.ticket.update({
+        where: { id: activeTicket.id },
+        data: { statut: "TERMINE", heureFin: new Date() }
+      });
+      req.io.emit("ticketServed", activeTicket);
+    }
+
+    // 2. Find the next waiting ticket globally (Queue is single service now)
+    const nextTicket = await prisma.ticket.findFirst({
+      where: { statut: "EN_ATTENTE" },
+      orderBy: [{ priorite: "desc" }, { heureCreation: "asc" }]
+    });
+
+    if (!nextTicket) {
+      // Clear current display since we marked the last one done but had no next one
+      req.io.emit("callTicket", null);
+      return res.json({ message: "Aucun client" });
+    }
+
+    // 3. Mark the next one as active
+    const updated = await prisma.ticket.update({
+      where: { id: nextTicket.id },
+      data: { statut: "EN_COURS", heureAppel: new Date() }
+    });
+
+    req.io.emit("callTicket", updated);
+    res.json(updated);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Server Error" });
+  }
 };
 
 exports.getCurrentTicket = async (req, res) => {
   const ticket = await prisma.ticket.findFirst({
     where: { statut: "EN_COURS" },
-    orderBy: { heureAppel: "desc" },
-    include: { service: true }
+    orderBy: { heureAppel: "desc" }
   });
-  res.json(ticket || { numero: "--" });
+  
+  if (ticket) {
+      res.json({ numero: ticket.numero });
+  } else {
+      res.json({ numero: "--" });
+  }
 };
 
-// Returns the live waiting queue ordered by priority desc then creation asc
 exports.getQueue = async (req, res) => {
-  const { serviceId } = req.query;
-  const where = { statut: "EN_ATTENTE" };
-  if (serviceId) where.serviceId = parseInt(serviceId);
-
   const queue = await prisma.ticket.findMany({
-    where,
-    orderBy: [{ priorite: "desc" }, { heureCreation: "asc" }],
-    include: { service: true }
+    where: { statut: "EN_ATTENTE" },
+    orderBy: [{ priorite: "desc" }, { heureCreation: "asc" }]
   });
   res.json(queue);
 };
 
-// Toggle priority on a ticket (0 -> 1 -> 2 -> 0)
 exports.setPriority = async (req, res) => {
   try {
     const { ticketId, priority } = req.body;
@@ -145,17 +149,36 @@ exports.setPriority = async (req, res) => {
   }
 };
 
-// Get tickets for the authenticated user
-exports.getMyTickets = async (req, res) => {
-  const tickets = await prisma.ticket.findMany({
-    where: { clientId: req.user.id },
-    orderBy: { heureCreation: "desc" },
-    include: { service: true }
+exports.getStats = async (req, res) => {
+  const { start, end } = getAlgiersDayBoundsUtc();
+  const total = await prisma.ticket.count({
+    where: { heureCreation: { gte: start, lt: end } }
   });
-  res.json(tickets);
+  const waiting = await prisma.ticket.count({ where: { statut: "EN_ATTENTE" } });
+  const todayServed = await prisma.ticket.count({
+    where: { statut: "TERMINE", heureCreation: { gte: start, lt: end } }
+  });
+
+  const done = await prisma.ticket.findMany({
+    where: {
+      statut: "TERMINE",
+      heureFin: { not: null },
+      heureAppel: { not: null },
+      heureCreation: { gte: start, lt: end }
+    },
+    select: { heureAppel: true, heureFin: true }
+  });
+  
+  let avgHandling = 3;
+  if (done.length > 0) {
+    const totalMs = done.reduce((acc, t) => acc + (new Date(t.heureFin) - new Date(t.heureAppel)), 0);
+    avgHandling = Math.ceil(totalMs / done.length / 60000);
+  }
+  const estimatedWaitMinutes = waiting * avgHandling;
+
+  res.json({ total, waiting, served: todayServed, todayServed, avgHandling, estimatedWaitMinutes });
 };
 
-// Detailed statistics with optional date filtering
 exports.getDetailedStats = async (req, res) => {
   const { startDate, endDate } = req.query;
   
@@ -168,33 +191,19 @@ exports.getDetailedStats = async (req, res) => {
       dateFilter.lte = eod;
     }
   } else {
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    dateFilter.gte = todayStart;
+    const { start, end } = getAlgiersDayBoundsUtc();
+    dateFilter.gte = start;
+    dateFilter.lt = end;
   }
 
-  const [allTickets, services] = await Promise.all([
-    prisma.ticket.findMany({
-      where: { heureCreation: dateFilter },
-      include: { service: true }
-    }),
-    prisma.service.findMany()
-  ]);
-
-  // Per-service breakdown
-  const byService = services.map(s => {
-    const sTickets = allTickets.filter(t => t.serviceId === s.id);
-    return {
-      name: s.nom,
-      total: sTickets.length,
-      waiting: sTickets.filter(t => t.statut === "EN_ATTENTE").length,
-      served: sTickets.filter(t => t.statut === "TERMINE").length,
-    };
+  const allTickets = await prisma.ticket.findMany({
+    where: { heureCreation: dateFilter }
   });
 
   // Hourly distribution (0-23)
   const byHour = Array.from({ length: 24 }, (_, h) => ({
     hour: h,
-    count: allTickets.filter(t => new Date(t.heureCreation).getHours() === h).length
+    count: allTickets.filter(t => getAlgiersHour(t.heureCreation) === h).length
   }));
 
   // Average handling time from completed tickets
@@ -211,6 +220,12 @@ exports.getDetailedStats = async (req, res) => {
     ? Math.round((done.length / allTickets.length) * 100)
     : 0;
 
+  const byStatus = [
+    { name: "Waiting", value: allTickets.filter(t => t.statut === "EN_ATTENTE").length },
+    { name: "In Progress", value: allTickets.filter(t => t.statut === "EN_COURS").length },
+    { name: "Served", value: allTickets.filter(t => t.statut === "TERMINE").length }
+  ];
+
   res.json({
     total: allTickets.length,
     waiting: allTickets.filter(t => t.statut === "EN_ATTENTE").length,
@@ -218,7 +233,7 @@ exports.getDetailedStats = async (req, res) => {
     avgHandlingMin,
     completionRate,
     peakHour,
-    byService,
-    byHour
+    byHour,
+    byStatus
   });
 };

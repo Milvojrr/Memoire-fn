@@ -1,4 +1,158 @@
+:root {
+  --app-radius-lg: 1.25rem;
+  --app-radius-md: 0.9rem;
+  --app-shadow-soft: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --app-shadow-strong: 0 16px 45px rgba(15, 23, 42, 0.14);
+  --status-waiting: #f59e0b;
+  --status-progress: #2563eb;
+  --status-served: #16a34a;
+  --status-cancelled: #6b7280;
+}
+
+html, body, #root {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
-  background-color: #f8f9fa;
-  transition: background-color 0.3s;
+  background:
+    radial-gradient(1000px 550px at -10% -25%, rgba(59, 130, 246, 0.2), transparent 55%),
+    radial-gradient(900px 500px at 110% 0%, rgba(14, 165, 233, 0.18), transparent 50%),
+    linear-gradient(180deg, #f8fbff 0%, #f3f6fb 100%);
+  color: #0f172a;
+  font-family: "Inter", "Segoe UI", "Roboto", system-ui, sans-serif;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+[data-bs-theme="dark"] body {
+  background:
+    radial-gradient(900px 450px at -15% -25%, rgba(37, 99, 235, 0.25), transparent 55%),
+    radial-gradient(900px 500px at 110% 0%, rgba(14, 165, 233, 0.2), transparent 55%),
+    linear-gradient(180deg, #0f172a 0%, #020617 100%);
+  color: #e2e8f0;
+}
+
+.app-modern .navbar {
+  backdrop-filter: blur(10px);
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+[data-bs-theme="dark"] .app-modern .navbar {
+  background-color: rgba(15, 23, 42, 0.8) !important;
+  border-bottom-color: rgba(148, 163, 184, 0.25);
+}
+
+.app-modern .card {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-soft);
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  will-change: transform;
+}
+
+.app-modern .card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--app-shadow-strong);
+}
+
+.app-modern .btn {
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+
+.app-modern .btn:hover {
+  transform: translateY(-1px);
+}
+
+.app-modern .btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
+.app-modern .btn-primary {
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.3);
+}
+
+.app-modern .form-control,
+.app-modern .form-select,
+.app-modern .input-group-text {
+  border-radius: var(--app-radius-md);
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+.app-modern .form-control:focus,
+.app-modern .form-select:focus {
+  border-color: rgba(37, 99, 235, 0.65);
+  box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.18);
+}
+
+.app-modern .table {
+  --bs-table-bg: transparent;
+}
+
+.app-modern .table > :not(caption) > * > * {
+  padding-top: 0.9rem;
+  padding-bottom: 0.9rem;
+}
+
+.app-modern .badge {
+  letter-spacing: 0.02em;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+}
+
+.status-chip::before {
+  content: "";
+  width: 0.48rem;
+  height: 0.48rem;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.status-waiting {
+  color: var(--status-waiting);
+  background: color-mix(in srgb, var(--status-waiting) 12%, transparent);
+  border-color: color-mix(in srgb, var(--status-waiting) 28%, transparent);
+}
+
+.status-progress {
+  color: var(--status-progress);
+  background: color-mix(in srgb, var(--status-progress) 12%, transparent);
+  border-color: color-mix(in srgb, var(--status-progress) 28%, transparent);
+}
+
+.status-served {
+  color: var(--status-served);
+  background: color-mix(in srgb, var(--status-served) 12%, transparent);
+  border-color: color-mix(in srgb, var(--status-served) 28%, transparent);
+}
+
+.status-cancelled {
+  color: var(--status-cancelled);
+  background: color-mix(in srgb, var(--status-cancelled) 12%, transparent);
+  border-color: color-mix(in srgb, var(--status-cancelled) 28%, transparent);
+}
+
+.table-responsive {
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 576px) {
+  .container,
+  .container-sm {
+    padding-left: 0.9rem;
+    padding-right: 0.9rem;
+  }
 }

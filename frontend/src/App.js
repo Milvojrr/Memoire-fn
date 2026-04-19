@@ -1,36 +1,37 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
+import ProtectedRoute from "./components/ProtectedRoute";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
-import Register from "./pages/Register";
-import ClientDashboard from "./pages/ClientDashboard";
-import AgentDashboard from "./pages/AgentDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
-import AdminClients from "./pages/AdminClients";
-import AdminAgents from "./pages/AdminAgents";
-import DisplayBoard from "./pages/DisplayBoard";
-import MyTickets from "./pages/MyTickets";
-import NotFound from "./pages/NotFound";
 import Statistics from "./pages/Statistics";
+import NotFound from "./pages/NotFound";
 
 function App() {
   return (
     <BrowserRouter>
-      <div className="d-flex flex-column min-vh-100">
+      <div className="app-modern d-flex flex-column min-vh-100">
         <Navbar />
         <main className="flex-grow-1">
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/client" element={<ClientDashboard />} />
-            <Route path="/my-tickets" element={<MyTickets />} />
-            <Route path="/agent" element={<AgentDashboard />} />
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/clients" element={<AdminClients />} />
-            <Route path="/admin/agents" element={<AdminAgents />} />
-            <Route path="/stats" element={<Statistics />} />
-            <Route path="/display" element={<DisplayBoard />} />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/stats"
+              element={
+                <ProtectedRoute>
+                  <Statistics />
+                </ProtectedRoute>
+              }
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>

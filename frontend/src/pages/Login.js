@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import API from "../services/api";
 import { Container, Row, Col, Form, Card, Button } from "react-bootstrap";
 
@@ -7,6 +7,12 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (localStorage.getItem("token")) {
+      window.location.href = "/admin";
+    }
+  }, []);
+
   const login = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -14,14 +20,8 @@ export default function Login() {
       const res = await API.post("/auth/login", { email, password });
       localStorage.setItem("token", res.data.token);
       
-      // Basic client side routing based on role
-      if (res.data.user.role === "admin") {
-        window.location.href = "/admin";
-      } else if (res.data.user.role === "agent") {
-        window.location.href = "/agent";
-      } else {
-        window.location.href = "/client";
-      }
+      // Single admin dashboard flow
+      window.location.href = "/admin";
     } catch (e) {
       alert("Identifiants incorrects ou erreur serveur");
     } finally {
@@ -30,7 +30,7 @@ export default function Login() {
   };
 
   return (
-    <Container className="vh-100 d-flex align-items-center justify-content-center">
+    <Container className="min-vh-100 d-flex align-items-center justify-content-center py-4">
       <Card className="shadow-lg border-0 overflow-hidden" style={{ maxWidth: '900px', width: '100%' }}>
         <Row className="g-0">
           {/* Left panel with illustration */}
@@ -43,14 +43,14 @@ export default function Login() {
           </Col>
 
           {/* Right panel with form */}
-          <Col md={6} className="p-5">
-            <div className="text-center mb-5">
+          <Col md={6} className="p-4 p-md-5">
+            <div className="text-center mb-4 mb-md-5">
               <h3 className="fw-bold text-body">Welcome Back</h3>
               <p className="text-muted">Please enter your details to sign in</p>
             </div>
             
             <Form onSubmit={login}>
-              <Form.Group className="mb-4">
+              <Form.Group className="mb-3 mb-md-4">
                 <Form.Label className="fw-semibold text-muted small">EMAIL ADDRESS</Form.Label>
                 <div className="input-group">
                   <span className="input-group-text bg-body-tertiary border-end-0"><i className="bi bi-envelope"></i></span>
@@ -64,7 +64,7 @@ export default function Login() {
                 </div>
               </Form.Group>
               
-              <Form.Group className="mb-5">
+              <Form.Group className="mb-4 mb-md-5">
                 <Form.Label className="fw-semibold text-muted small">PASSWORD</Form.Label>
                 <div className="input-group">
                   <span className="input-group-text bg-body-tertiary border-end-0"><i className="bi bi-key"></i></span>

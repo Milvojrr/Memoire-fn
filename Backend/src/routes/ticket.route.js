@@ -1,18 +1,20 @@
 const router = require("express").Router();
 const ctrl = require("../controllers/ticket.controller");
 const auth = require("../middlewares/auth.middleware");
-const optionalAuth = require("../middlewares/optionalAuth.middleware");
-const role = require("../middlewares/role.middleware");
 
-router.post("/create", optionalAuth, ctrl.createTicket);
-router.post("/call", auth, role("agent", "admin"), ctrl.callNext);
-router.post("/serve", auth, role("agent", "admin"), ctrl.markServed);
-router.patch("/priority", auth, role("agent", "admin"), ctrl.setPriority);
-router.get("/queue", auth, role("agent", "admin"), ctrl.getQueue);
-router.get("/stats", auth, ctrl.getStats);
-router.get("/stats/detailed", auth, role("admin", "agent"), ctrl.getDetailedStats);
-router.get("/my", auth, ctrl.getMyTickets);
-router.get("/all", auth, role("admin", "agent"), ctrl.getAllTickets);
+// Public routes for clients walking in
+router.post("/create", ctrl.createTicket);
+router.delete("/:id/cancel", ctrl.cancelTicket);
 router.get("/current", ctrl.getCurrentTicket);
+
+// Public route to view the live queue waiting list
+router.get("/queue", ctrl.getQueue); 
+
+// Admin only routes
+// Single endpoint marks current as done and calls next
+router.post("/call", auth, ctrl.callNext);
+router.patch("/priority", auth, ctrl.setPriority);
+router.get("/stats/detailed", auth, ctrl.getDetailedStats);
+router.get("/stats", auth, ctrl.getStats);
 
 module.exports = router;

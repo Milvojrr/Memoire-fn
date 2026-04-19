@@ -3,24 +3,23 @@ import Navbar from "react-bootstrap/Navbar";
 import Nav from "react-bootstrap/Nav";
 import Container from "react-bootstrap/Container";
 import Button from "react-bootstrap/Button";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import API from "../services/api";
 
 export default function AppNavbar() {
   const [theme, setTheme] = useState("light");
+  const [businessName, setBusinessName] = useState("Queue System");
   const token = localStorage.getItem("token");
   const isAuthenticated = !!token;
 
-  // Decode role from JWT payload (no library needed)
-  let userRole = null;
-  if (token) {
-    try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      userRole = payload.role;
-    } catch (e) {}
-  }
-
   useEffect(() => {
     document.documentElement.setAttribute("data-bs-theme", theme);
+    // Fetch business name
+    API.get("/config").then(res => {
+      if (res.data && res.data.businessName) {
+        setBusinessName(res.data.businessName);
+      }
+    }).catch(() => {});
   }, [theme]);
 
   const toggleTheme = () => {
@@ -34,46 +33,26 @@ export default function AppNavbar() {
 
   return (
     <Navbar bg={theme === "light" ? "light" : "dark"} variant={theme} expand="lg" className="shadow-sm">
-      <Container>
-        <Navbar.Brand as={Link} to="/" className="fw-bold text-primary">
-          <i className="bi bi-infinity me-2"></i>QueueHub
+      <Container fluid="lg">
+        <Navbar.Brand
+          as={Link}
+          to="/"
+          className="fw-bold text-primary text-truncate"
+          style={{ maxWidth: "70vw" }}
+        >
+          <i className="bi bi-display me-2"></i>{businessName}
         </Navbar.Brand>
         <Navbar.Toggle aria-controls="basic-navbar-nav" />
         <Navbar.Collapse id="basic-navbar-nav">
           <Nav className="me-auto">
-            <Nav.Link as={Link} to="/display">Display Board</Nav.Link>
-            {isAuthenticated ? (
+            {isAuthenticated && (
               <>
-                {/* Only clients see these */}
-                {userRole === "client" && (
-                  <>
-                    <Nav.Link as={Link} to="/client">Client</Nav.Link>
-                    <Nav.Link as={Link} to="/my-tickets">My Tickets</Nav.Link>
-                  </>
-                )}
-
-                {/* Agent and Admin only */}
-                {(userRole === "agent" || userRole === "admin") && (
-                  <>
-                    <Nav.Link as={Link} to="/agent">Agent</Nav.Link>
-                    <Nav.Link as={Link} to="/stats">Stats</Nav.Link>
-                  </>
-                )}
-
-                {/* Admin only */}
-                {userRole === "admin" && (
-                  <>
-                    <Nav.Link as={Link} to="/admin">Admin</Nav.Link>
-                    <Nav.Link as={Link} to="/admin/clients">Clients</Nav.Link>
-                    <Nav.Link as={Link} to="/admin/agents">Agents</Nav.Link>
-                  </>
-                )}
+                <Nav.Link as={Link} to="/admin">Dashboard</Nav.Link>
+                <Nav.Link as={Link} to="/stats">Statistics</Nav.Link>
               </>
-            ) : (
-              <Nav.Link as={Link} to="/register">Register</Nav.Link>
             )}
           </Nav>
-          <div className="d-flex align-items-center gap-3">
+          <div className="d-flex align-items-center gap-2 gap-sm-3 flex-wrap mt-3 mt-lg-0">
             <Button variant={theme === "light" ? "outline-dark" : "outline-light"} size="sm" onClick={toggleTheme}>
               {theme === "light" ? <i className="bi bi-moon-stars-fill"></i> : <i className="bi bi-sun-fill"></i>}
             </Button>
@@ -83,7 +62,7 @@ export default function AppNavbar() {
               </Button>
             ) : (
               <Button as={Link} to="/login" variant="primary" size="sm" className="rounded-pill px-3">
-                Login
+                Admin Login
               </Button>
             )}
           </div>

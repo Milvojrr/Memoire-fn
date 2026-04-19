@@ -1,6 +1,8 @@
 require("dotenv").config();
 const express = require("express");
 const http = require("http");
+const fs = require("fs");
+const path = require("path");
 const cors = require("cors");
 const morgan = require("morgan");
 const { Server } = require("socket.io");
@@ -8,8 +10,7 @@ const rateLimit = require("express-rate-limit");
 
 const authRoutes = require("./routes/auth.route");
 const ticketRoutes = require("./routes/ticket.route");
-const serviceRoutes = require("./routes/service.route");
-const userRoutes = require("./routes/user.route");
+const auth = require("./middlewares/auth.middleware");
 
 const app = express();
 const server = http.createServer(app);
@@ -34,8 +35,45 @@ app.use((req, res, next) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/tickets", ticketRoutes);
-app.use("/api/services", serviceRoutes);
-app.use("/api/users", userRoutes);
+
+const configPath = path.join(__dirname, "../storage/app-config.json");
+const defaultConfig = { businessName: process.env.BUSINESS_NAME || "My Queue" };
+
+const readAppConfig = () => {
+  try {
+    if (!fs.existsSync(configPath)) {
+      fs.mkdirSync(path.dirname(configPath), { recursive: true });
+      fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2), "utf8");
+      return defaultConfig;
+    }
+    const data = fs.readFileSync(configPath, "utf8");
+    return { ...defaultConfig, ...JSON.parse(data || "{}") };
+  } catch {
+    return defaultConfig;
+  }
+};
+
+app.get("/api/config", (req, res) => {
+  res.json(readAppConfig());
+});
+
+app.put("/api/config", auth, (req, res) => {
+  const businessName = String(req.body?.businessName || "").trim();
+  if (!businessName) {
+    return res.status(400).json({ error: "Business name is required" });
+  }
+  if (businessName.length > 80) {
+    return res.status(400).json({ error: "Business name too long" });
+  }
+  try {
+    const next = { ...readAppConfig(), businessName };
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(configPath, JSON.stringify(next, null, 2), "utf8");
+    res.json(next);
+  } catch {
+    res.status(500).json({ error: "Failed to update business name" });
+  }
+});
 
 // Apply rate limit only to ticket creation
 app.use("/api/tickets/create", ticketLimiter);
@@ -50,4 +88,4 @@ app.post("/api/broadcast", (req, res) => {
 
 server.listen(process.env.PORT || 3000, () => {
   console.log("Server running");
-});
+});

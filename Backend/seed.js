@@ -4,7 +4,7 @@ const bcrypt = require('bcrypt');
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding default users and services...');
+  console.log('Seeding default admin and services...');
 
   const passwordHash = await bcrypt.hash('123456', 10);
 
@@ -24,48 +24,17 @@ async function main() {
 
   // Admin
   try {
-    await prisma.utilisateur.upsert({
+    await prisma.admin.upsert({
       where: { email: 'admin@test.com' },
       update: {},
       create: {
         nom: 'Super Admin',
         email: 'admin@test.com',
-        password: passwordHash,
-        role: 'admin'
+        password: passwordHash
       }
     });
     console.log('✅ Admin user created: admin@test.com / 123456');
   } catch(e) { console.log('Admin already exists.'); }
-
-  // Agent
-  try {
-    await prisma.utilisateur.upsert({
-      where: { email: 'agent@test.com' },
-      update: {},
-      create: {
-        nom: 'Agent Desk 1',
-        email: 'agent@test.com',
-        password: passwordHash,
-        role: 'agent'
-      }
-    });
-    console.log('✅ Agent user created: agent@test.com / 123456');
-  } catch(e) { console.log('Agent already exists.'); }
-
-  // Client
-  try {
-    await prisma.utilisateur.upsert({
-      where: { email: 'client@test.com' },
-      update: {},
-      create: {
-        nom: 'Test Client',
-        email: 'client@test.com',
-        password: passwordHash,
-        role: 'client'
-      }
-    });
-    console.log('✅ Client user created: client@test.com / 123456');
-  } catch(e) { console.log('Client already exists.'); }
 
 }
 

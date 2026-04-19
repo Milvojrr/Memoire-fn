@@ -1,80 +1,285 @@
-import { Container, Row, Col, Button, Card } from "react-bootstrap";
-import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { Container, Row, Col, Card, Button, Modal, Toast, ToastContainer } from "react-bootstrap";
+import { motion, AnimatePresence } from "framer-motion";
+import socket from "../services/socket";
+import API from "../services/api";
 
 export default function Home() {
-  return (
-    <div className="min-vh-100 d-flex flex-column bg-body-tertiary">
-      <div className="flex-grow-1 d-flex align-items-center bg-primary text-white" style={{ background: "linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%)" }}>
-        <Container>
-          <Row className="align-items-center py-5">
-            <Col lg={6} className="text-center text-lg-start mb-5 mb-lg-0">
-              <motion.div initial={{ opacity: 0, x: -50 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8 }}>
-                <h1 className="display-3 fw-bold mb-4">Smart Queue Management</h1>
-                <p className="lead mb-4 opacity-75">
-                  Optimize your customer service with our intelligent, real-time ticketing system. Eliminate physical lines and increase customer satisfaction.
-                </p>
-                <div className="d-flex gap-3 justify-content-center justify-content-lg-start">
-                  <Button as={Link} to="/client" variant="light" size="lg" className="rounded-pill fw-bold px-4 shadow-sm">
-                    <i className="bi bi-ticket-perforated me-2"></i> Get a Ticket
-                  </Button>
-                  <Button as={Link} to="/login" variant="outline-light" size="lg" className="rounded-pill px-4">
-                    <i className="bi bi-person-fill-lock me-2"></i> Staff Login
-                  </Button>
-                </div>
-              </motion.div>
-            </Col>
-            <Col lg={6}>
-              <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }}>
-                <Card className="border-0 shadow-lg text-body bg-body rounded-4 overflow-hidden">
-                  <div className="bg-body-secondary p-3 border-bottom d-flex align-items-center gap-2">
-                    <div className="bg-danger rounded-circle" style={{width: "12px", height: "12px"}}></div>
-                    <div className="bg-warning rounded-circle" style={{width: "12px", height: "12px"}}></div>
-                    <div className="bg-success rounded-circle" style={{width: "12px", height: "12px"}}></div>
-                  </div>
-                  <Card.Body className="p-5 text-center">
-                    <i className="bi bi-display text-primary mb-3" style={{ fontSize: "5rem" }}></i>
-                    <h3>Live Status Updates</h3>
-                    <p className="text-muted">Display boards sync in real-time across all devices thanks to WebSockets integration.</p>
-                  </Card.Body>
-                </Card>
-              </motion.div>
-            </Col>
-          </Row>
-        </Container>
-      </div>
+  const [current, setCurrent] = useState(null);
+  const [businessName, setBusinessName] = useState("My Queue");
+  const [showModal, setShowModal] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [myTicket, setMyTicket] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [toast, setToast] = useState({ show: false, message: "", variant: "success" });
 
-      <Container className="py-5">
-        <Row className="text-center g-4">
-          <Col md={4}>
-            <div className="p-4 bg-body rounded-4 shadow-sm h-100">
-              <i className="bi bi-speedometer2 text-primary mb-3" style={{ fontSize: "3rem" }}></i>
-              <h4>Fast & Efficient</h4>
-              <p className="text-muted">Reduce perceived wait times and increase service throughput seamlessly.</p>
-            </div>
+  const fetchCurrent = async () => {
+    try {
+      const res = await API.get("/tickets/current");
+      if (res.data && res.data.numero !== "--") {
+        setCurrent(res.data);
+      } else {
+        setCurrent(null);
+      }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    fetchCurrent();
+    API.get("/config").then(res => {
+      if (res.data) setBusinessName(res.data.businessName);
+    }).catch(()=>{});
+
+    socket.on("callTicket", (data) => {
+      if (data) {
+        setCurrent(data);
+        try { new Audio("/bell.mp3").play().catch(()=>{}); } catch(e){}
+      } else {
+        setCurrent(null);
+      }
+    });
+
+    socket.on("ticketServed", () => {
+      fetchCurrent();
+    });
+
+    return () => {
+      socket.off("callTicket");
+      socket.off("ticketServed");
+    };
+  }, []);
+
+  const handleGetTicket = async () => {
+    try {
+      const res = await API.post("/tickets/create", {});
+      setMyTicket(res.data);
+      setShowModal(true);
+    } catch(e) {
+      alert("Failed to get ticket!");
+    }
+  };
+
+  const requestLeaveQueue = () => {
+    if (!myTicket?.id || cancelling) return;
+    setShowCancelConfirm(true);
+  };
+
+  const handleLeaveQueue = async () => {
+    if (!myTicket?.id) return;
+
+    setCancelling(true);
+    try {
+      await API.delete(`/tickets/${myTicket.id}/cancel`);
+      setMyTicket(null);
+      setShowModal(false);
+      setShowCancelConfirm(false);
+      setToast({ show: true, message: "Your ticket was cancelled successfully.", variant: "success" });
+    } catch (e) {
+      const message = e?.response?.data?.error || "Unable to cancel this ticket.";
+      setToast({ show: true, message, variant: "danger" });
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const printTicket = () => {
+    window.print();
+  };
+
+  return (
+    <div className="min-vh-100 bg-body d-flex flex-column">
+      <Container className="my-5 flex-grow-1 d-flex flex-column">
+        <Row className="g-4 flex-grow-1 align-items-stretch">
+          {/* LEFT: Get Ticket */}
+          <Col lg={5} className="d-flex flex-column">
+            <Card
+              className="border-0 shadow-lg rounded-4 flex-grow-1 overflow-hidden"
+              style={{
+                background: "linear-gradient(160deg, #ffffff 0%, #f7faff 100%)",
+              }}
+            >
+              <div
+                className="text-muted fw-bold text-uppercase py-3 px-4 border-bottom d-flex align-items-center justify-content-between"
+                style={{
+                  backgroundColor: "rgba(13, 110, 253, 0.05)",
+                }}
+              >
+                <div className="d-flex align-items-center gap-2">
+                  <i className="bi bi-ticket-perforated text-primary"></i>
+                  <span>Get Ticket</span>
+                </div>
+                <span className="badge rounded-pill text-bg-light text-primary px-3 py-2">
+                  Quick
+                </span>
+              </div>
+              <Card.Body className="p-4 p-md-5 d-flex align-items-center justify-content-center text-center flex-column">
+                <h2 className="fw-bold mb-2">{businessName}</h2>
+                <p className="text-muted mb-4" style={{ maxWidth: "26rem" }}>
+                  Take your ticket and wait for your number to appear on the display board.
+                </p>
+                <Button
+                  variant="primary"
+                  size="lg"
+                  className="rounded-pill px-4 px-md-5 py-3 fw-bold shadow-sm"
+                  style={{
+                    fontSize: "clamp(1rem, 2.6vw, 1.2rem)",
+                    letterSpacing: "0.02em",
+                  }}
+                  onClick={handleGetTicket}
+                >
+                  <i className="bi bi-ticket-perforated-fill me-2"></i>
+                  GET A TICKET
+                </Button>
+                <small className="text-muted mt-3">It only takes a second</small>
+              </Card.Body>
+            </Card>
           </Col>
-          <Col md={4}>
-            <div className="p-4 bg-body rounded-4 shadow-sm h-100">
-              <i className="bi bi-graph-up-arrow text-success mb-3" style={{ fontSize: "3rem" }}></i>
-              <h4>Analytics Dashboard</h4>
-              <p className="text-muted">Monitor queue performance and operator efficiency from your admin panel.</p>
-            </div>
+
+          {/* RIGHT: Display Board */}
+          <Col lg={7} className="d-flex flex-column">
+            <Card
+              className="border-0 shadow-lg rounded-4 flex-grow-1 overflow-hidden"
+              style={{
+                background: "linear-gradient(145deg, #0b3fa6 0%, #0d6efd 58%, #0dcaf0 100%)",
+                color: "white",
+              }}
+            >
+              <div
+                className="fw-bold text-uppercase py-3 px-4 border-bottom d-flex justify-content-between align-items-center"
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.14)",
+                  backdropFilter: "blur(2px)",
+                }}
+              >
+                <div className="d-flex align-items-center gap-2">
+                  <i className="bi bi-display"></i>
+                  <span>Display Board</span>
+                </div>
+                <span className="badge rounded-pill text-bg-light text-primary px-3 py-2">
+                  Live
+                </span>
+              </div>
+              <Card.Body className="p-4 p-md-5 d-flex align-items-center justify-content-center text-center flex-column">
+                <p className="mb-2 text-uppercase fw-semibold opacity-75 small">
+                  Now Serving
+                </p>
+                <AnimatePresence mode="wait">
+                  {current ? (
+                    <motion.div
+                      key={current.numero}
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.9, opacity: 0 }}
+                      className="w-100"
+                    >
+                      <h1
+                        className="fw-bold m-0 pb-2"
+                        style={{
+                          fontSize: "clamp(4.5rem, 14vw, 10.5rem)",
+                          lineHeight: 1,
+                          letterSpacing: "0.04em",
+                          textShadow: "0 8px 18px rgba(0,0,0,0.28)",
+                        }}
+                      >
+                        #{current.numero}
+                      </h1>
+                      <p className="mb-0 opacity-75">Please proceed to the counter</p>
+                    </motion.div>
+                  ) : (
+                    <motion.h3
+                      key="empty"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="text-white opacity-75 fw-normal"
+                      style={{ fontSize: "clamp(1.5rem, 4.2vw, 2.3rem)" }}
+                    >
+                      Waiting for the next client...
+                    </motion.h3>
+                  )}
+                </AnimatePresence>
+              </Card.Body>
+            </Card>
           </Col>
-          <Col md={4}>
-            <div className="p-4 bg-white rounded-4 shadow-sm h-100">
-              <i className="bi bi-phone text-info mb-3" style={{ fontSize: "3rem" }}></i>
-              <h4>Mobile Ready</h4>
-              <p className="text-muted">Fully responsive design allows clients to take tickets right from their smartphones.</p>
-            </div>
-          </Col>
+
         </Row>
       </Container>
-      
-      <footer className="bg-dark text-white-50 py-4 text-center mt-auto">
-        <Container>
-          <small>&copy; {new Date().getFullYear()} Queue Management System</small>
-        </Container>
-      </footer>
+
+      {/* Ticket Modal */}
+      <Modal show={showModal} onHide={() => { setShowModal(false); setMyTicket(null); }} centered backdrop="static" className="print-modal">
+        <Modal.Header closeButton className="border-0 pb-0"></Modal.Header>
+        <Modal.Body className="text-center pb-5 pt-0 px-5">
+          <div id="ticket-print-area" className="bg-white shadow-sm p-4 mb-4">
+            <div style={{ maxWidth: "360px", margin: "0 auto", fontFamily: "monospace", border: "1px dashed #6c757d", padding: "18px" }}>
+              <h5 className="mb-1 fw-bold text-uppercase">{businessName}</h5>
+              <div className="small text-muted mb-3">Queue Ticket</div>
+              <div style={{ borderTop: "1px dashed #bbb", marginBottom: "12px" }}></div>
+              <div className="small text-muted">Ticket Number</div>
+              <div className="fw-bold text-dark" style={{ fontSize: "3.4rem", lineHeight: 1.05 }}>
+                #{myTicket?.numero}
+              </div>
+              <div className="small mt-2">Date: {myTicket && new Date(myTicket.heureCreation).toLocaleDateString()}</div>
+              <div className="small">Time: {myTicket && new Date(myTicket.heureCreation).toLocaleTimeString()}</div>
+              <div style={{ borderTop: "1px dashed #bbb", margin: "12px 0" }}></div>
+              <div className="small fw-bold">Please wait for your number to be called.</div>
+              <div className="small text-muted mt-2">Thank you for your visit.</div>
+            </div>
+          </div>
+           
+          <div className="d-flex gap-3 d-print-none">
+            <Button variant="secondary" className="w-100" onClick={() => { setShowModal(false); setMyTicket(null); }}>Close</Button>
+            <Button variant="primary" className="w-100" onClick={printTicket}><i className="bi bi-printer-fill me-2"></i> Print</Button>
+            <Button variant="outline-danger" className="w-100" onClick={requestLeaveQueue} disabled={cancelling}>
+              {cancelling ? "Cancelling..." : "Leave Queue"}
+            </Button>
+          </div>
+        </Modal.Body>
+      </Modal>
+
+      <Modal show={showCancelConfirm} onHide={() => setShowCancelConfirm(false)} centered>
+        <Modal.Header closeButton>
+          <Modal.Title>Leave Queue</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Are you sure you want to leave the queue? Your current ticket will be deleted.
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowCancelConfirm(false)} disabled={cancelling}>
+            Keep My Ticket
+          </Button>
+          <Button variant="danger" onClick={handleLeaveQueue} disabled={cancelling}>
+            {cancelling ? "Cancelling..." : "Yes, Leave Queue"}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Inline styles for printing the ticket and hiding the rest */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #ticket-print-area, #ticket-print-area * { visibility: visible; }
+          #ticket-print-area { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; }
+        }
+      `}</style>
+
+      <ToastContainer position="bottom-end" className="p-3" style={{ zIndex: 1080 }}>
+        <Toast
+          onClose={() => setToast((prev) => ({ ...prev, show: false }))}
+          show={toast.show}
+          delay={2600}
+          autohide
+          bg={toast.variant}
+        >
+          <Toast.Header closeButton>
+            <strong className="me-auto d-flex align-items-center gap-2">
+              <i className={`bi ${toast.variant === "success" ? "bi-check-circle-fill text-success" : "bi-exclamation-triangle-fill text-warning"}`}></i>
+              {toast.variant === "success" ? "Success" : "Notice"}
+            </strong>
+          </Toast.Header>
+          <Toast.Body className={toast.variant === "danger" ? "text-white" : ""}>
+            {toast.message}
+          </Toast.Body>
+        </Toast>
+      </ToastContainer>
     </div>
   );
 }

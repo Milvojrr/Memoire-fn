@@ -7,43 +7,21 @@ generator client {
   provider = "prisma-client-js"
 }
 
-enum Role {
-  client
-  agent
-  admin
-}
-
-model Utilisateur {
+model Admin {
   id       Int    @id @default(autoincrement())
   nom      String
   email    String @unique
   password String
-  role     Role
 
-  tickets  Ticket[]
-}
-
-model Service {
-  id          Int     @id @default(autoincrement())
-  nom         String
-  description String?
-  tempsMoyen  Float?
-
-  tickets     Ticket[]
+  @@map("admin")
 }
 
 model Ticket {
   id             Int      @id @default(autoincrement())
   numero         Int
-  statut         String
+  statut         String   @default("EN_ATTENTE")
   priorite       Int      @default(0)
   heureCreation  DateTime @default(now())
   heureAppel     DateTime?
   heureFin       DateTime?
-
-  clientId Int
-  serviceId Int
-
-  client   Utilisateur @relation(fields: [clientId], references: [id])
-  service  Service     @relation(fields: [serviceId], references: [id])
 }
